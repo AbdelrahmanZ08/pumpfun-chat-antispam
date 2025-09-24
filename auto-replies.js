@@ -258,15 +258,16 @@ function saveAutoReplies() {
   }, () => {
     showStatus("Auto replies saved successfully!", "success");
 
-    // Notify content script that auto replies updated
+    // Notify content script that auto replies updated (with better error handling)
     chrome.tabs?.query({active: true, currentWindow: true}, (tabs) => {
       if (tabs && tabs[0]) {
         chrome.tabs?.sendMessage(tabs[0].id, {
           action: "autoRepliesUpdated"
-        }, () => {
+        }, (response) => {
           // Clear any Chrome runtime errors
           if (chrome.runtime.lastError) {
             console.log("Could not send autoRepliesUpdated message:", chrome.runtime.lastError.message);
+            // This is normal if content script isn't loaded - don't show error to user
           }
         });
       }
@@ -324,17 +325,24 @@ function bind() {
 
   $("#auto-reply-enabled").addEventListener("change", (e) => {
     isAutoReplyEnabled = e.target.checked;
+    console.log(`🤖 Auto-reply toggle changed to: ${isAutoReplyEnabled}`);
 
     // Update action mode based on toggle
     if (isAutoReplyEnabled) {
+      console.log(`✅ Setting action to "auto_reply"`);
       chrome.storage.sync.set({
         [K_AUTO_REPLY_ENABLED]: true,
         [K_ACTION]: "auto_reply"
+      }, () => {
+        console.log(`✅ Storage updated: ACTION=auto_reply`);
       });
     } else {
+      console.log(`❌ Setting action to "viewer_mode"`);
       chrome.storage.sync.set({
         [K_AUTO_REPLY_ENABLED]: false,
         [K_ACTION]: "viewer_mode"
+      }, () => {
+        console.log(`❌ Storage updated: ACTION=viewer_mode`);
       });
     }
 

@@ -669,14 +669,38 @@
     return false;
   }
 
+  // Track sent messages to prevent infinite loops
+  let recentlySentMessages = new Set();
+
   // Auto-reply matcher: checks if message should trigger an auto reply
-  function findAutoReply(text) {
-    if (ACTION !== "auto_reply" || AUTO_REPLIES.length === 0) return null;
+  function findAutoReply(text, bubble) {
+    console.log(`🔍 findAutoReply called with ACTION: ${ACTION}, AUTO_REPLIES.length: ${AUTO_REPLIES.length}`);
+
+    if (ACTION !== "auto_reply" || AUTO_REPLIES.length === 0) {
+      console.log(`❌ Auto-reply skipped - ACTION: ${ACTION}, REPLIES: ${AUTO_REPLIES.length}`);
+      return null;
+    }
 
     const t = normalizeKeepAt(text);
-    if (!t) return null;
+    if (!t) {
+      console.log(`❌ Text normalization failed for: "${text}"`);
+      return null;
+    }
 
-    log(`🤖 checking for auto-reply triggers in: "${text.substring(0, 50)}"`);
+    // Prevent infinite loops - don't reply to messages we just sent
+    if (recentlySentMessages.has(text.trim())) {
+      console.log(`🔄 Skipping auto-reply to prevent loop: "${text.substring(0, 30)}..."`);
+      return null;
+    }
+
+    // Skip messages that look like auto-replies (contain common auto-reply phrases)
+    const autoReplyIndicators = ['auto reply', 'this is auto reply', 'automatic response', 'bot response'];
+    if (autoReplyIndicators.some(indicator => t.includes(indicator))) {
+      console.log(`🤖 Skipping message that appears to be an auto-reply: "${text.substring(0, 30)}..."`);
+      return null;
+    }
+
+    console.log(`🤖 checking for auto-reply triggers in: "${text.substring(0, 50)}" (normalized: "${t.substring(0, 50)}")`);
 
     // Check auto reply triggers
     for (const preset of AUTO_REPLIES) {
@@ -696,7 +720,7 @@
         const triggerLettersOnly = extractLettersOnly(exactPhrase);
 
         if (messageLettersOnly === triggerLettersOnly) {
-          log(`✅ auto-reply exact match: "${trigger}" → "${preset.reply}"`);
+          console.log(`✅ auto-reply exact match: "${trigger}" → "${preset.reply}"`);
           return preset.reply;
         }
         continue;
@@ -714,18 +738,20 @@
         const regex = new RegExp(wildcardPattern, 'i');
 
         if (regex.test(t)) {
-          log(`✅ auto-reply wildcard match: "${trigger}" → "${preset.reply}"`);
+          console.log(`✅ auto-reply wildcard match: "${trigger}" → "${preset.reply}"`);
           return preset.reply;
         }
       } else {
         // Regular partial string matching
         if (t.includes(normalizedTrigger)) {
-          log(`✅ auto-reply match: "${trigger}" → "${preset.reply}"`);
+          console.log(`✅ auto-reply match: "${trigger}" → "${preset.reply}"`);
           return preset.reply;
         }
+        console.log(`❌ No match for trigger "${trigger}" (normalized: "${normalizedTrigger}") against "${t}"`);
       }
     }
 
+    console.log(`❌ No auto-reply matches found`);
     return null;
   }
 
@@ -810,62 +836,95 @@
 
   async function sendAutoReply(message) {
     try {
-      // Method 1: Try WebSocket direct injection
-      if (window.pfamSendMessage && typeof window.pfamSendMessage === 'function') {
-        const roomId = extractRoomId() || window.location.pathname.split('/').pop();
-        return window.pfamSendMessage(message, roomId);
+      console.log(`🚀 Attempting to send auto-reply: "${message}"`);
+
+      // Use UI simulation method only
+      const uiSuccess = await simulateUIMessageSend(message);
+      if (uiSuccess) {
+        console.log(`✅ UI simulation successful`);
+        return true;
       }
 
-      // Method 2: Try HTTP API
-      const success = await sendMessageViaAPI(message);
-      if (success) return true;
-
-      // Method 3: Initialize chat client if needed
-      if (!chatClient) {
-        await initializeChatClient();
-      }
-
-      if (chatClient && chatClient.isActive()) {
-        return chatClient.sendMessage(message);
-      }
-
+      console.log(`❌ UI simulation failed`);
       return false;
     } catch (error) {
+      console.error(`❌ sendAutoReply error:`, error);
       log(`❌ sendAutoReply error:`, error);
       return false;
     }
   }
 
-  async function sendMessageViaAPI(message) {
+
+  async function simulateUIMessageSend(message) {
     try {
-      const roomId = extractRoomId() || window.location.pathname.split('/').pop();
-      const token = extractJWTToken();
+      // Find the message input field
+      const inputSelectors = [
+        'input[type="text"]',
+        'textarea',
+        '[contenteditable="true"]',
+        'input[placeholder*="message"]',
+        'input[placeholder*="chat"]'
+      ];
 
-      if (!roomId || !token) return false;
+      let inputField = null;
+      for (const selector of inputSelectors) {
+        inputField = document.querySelector(selector);
+        if (inputField) break;
+      }
 
-      const response = await fetch(`https://pump.fun/api/chat/${roomId}/message`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'auth-token': token,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-          message: message,
-          timestamp: new Date().toISOString()
-        }),
-        credentials: 'include'
-      });
+      if (!inputField) {
+        console.log(`❌ UI simulation failed: No input field found`);
+        return false;
+      }
 
-      if (response.ok) {
-        log(`⚡ auto-reply sent via API: "${message}"`);
+      console.log(`🖱️ Found input field:`, inputField);
+
+      // Focus and clear the input
+      inputField.focus();
+      inputField.value = '';
+
+      // Type the message
+      inputField.value = message;
+
+      // Trigger input events
+      inputField.dispatchEvent(new Event('input', { bubbles: true }));
+      inputField.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // Find and click send button
+      const sendSelectors = [
+        'button[type="submit"]',
+        'button:contains("Send")',
+        'button:contains("send")',
+        '[data-testid*="send"]',
+        '.send-button',
+        'button:last-child'
+      ];
+
+      let sendButton = null;
+      for (const selector of sendSelectors) {
+        sendButton = document.querySelector(selector);
+        if (sendButton) break;
+      }
+
+      if (!sendButton) {
+        // Try pressing Enter
+        inputField.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          which: 13,
+          keyCode: 13,
+          bubbles: true
+        }));
+        console.log(`🖱️ UI simulation: Pressed Enter`);
+        return true;
+      } else {
+        sendButton.click();
+        console.log(`🖱️ UI simulation: Clicked send button`);
         return true;
       }
 
-      return false;
     } catch (error) {
-      log(`❌ sendMessageViaAPI error:`, error);
+      console.error(`❌ UI simulation error:`, error);
       return false;
     }
   }
@@ -1230,28 +1289,54 @@
   
   // OPTIMIZED: Get auth token directly (no searching!)
   function extractJWTToken() {
-    // Get auth_token DIRECTLY from cookies (we know it exists!)
+    console.log(`🔍 Extracting JWT token...`);
+
+    // Method 1: Check localStorage
+    try {
+      const localStorageToken = localStorage.getItem('auth_token') || localStorage.getItem('privy:token') || localStorage.getItem('jwt_token');
+      if (localStorageToken) {
+        console.log(`✅ Found token in localStorage:`, localStorageToken.substring(0, 20) + '...');
+        return localStorageToken;
+      }
+    } catch (e) {
+      console.log(`❌ localStorage access failed:`, e);
+    }
+
+    // Method 2: Check sessionStorage
+    try {
+      const sessionToken = sessionStorage.getItem('auth_token') || sessionStorage.getItem('privy:token') || sessionStorage.getItem('jwt_token');
+      if (sessionToken) {
+        console.log(`✅ Found token in sessionStorage:`, sessionToken.substring(0, 20) + '...');
+        return sessionToken;
+      }
+    } catch (e) {
+      console.log(`❌ sessionStorage access failed:`, e);
+    }
+
+    // Method 3: Check cookies
+    console.log(`🍪 All cookies:`, document.cookie);
     const authToken = document.cookie
       .split('; ')
-      .find(row => row.startsWith('auth_token='))
+      .find(row => row.startsWith('auth_token=') || row.startsWith('privy-id-token='))
       ?.split('=')[1];
-    
+
     if (authToken) {
-      log(`✅ Got auth_token directly!`);
+      console.log(`✅ Found auth_token in cookies:`, authToken.substring(0, 20) + '...');
       return authToken;
     }
-    
-    // Fallback to privy-id-token if needed
-    const privyToken = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('privy-id-token='))
-      ?.split('=')[1];
-    
-    if (privyToken) {
-      log(`✅ Got privy-id-token as fallback`);
-      return privyToken;
+
+    // Method 4: Check window globals (common pattern)
+    try {
+      if (window.__NEXT_DATA__?.props?.pageProps?.user?.token) {
+        const token = window.__NEXT_DATA__.props.pageProps.user.token;
+        console.log(`✅ Found token in __NEXT_DATA__:`, token.substring(0, 20) + '...');
+        return token;
+      }
+    } catch (e) {
+      console.log(`❌ __NEXT_DATA__ access failed:`, e);
     }
-    
+
+    console.log(`❌ No JWT token found anywhere`);
     return null;
   }
   
@@ -1387,9 +1472,12 @@
   
   // Extract room ID dynamically
   function extractRoomId() {
+    console.log(`🔍 Extracting room ID from URL: ${window.location.href}`);
+
     // Method 1: From URL
     const urlMatch = window.location.href.match(/\/([A-Za-z0-9]{32,50})/);
     if (urlMatch && urlMatch[1]) {
+      console.log(`✅ Found room ID in URL: ${urlMatch[1]}`);
       log(`✅ Found room ID in URL: ${urlMatch[1]}`);
       return urlMatch[1];
     }
@@ -1534,12 +1622,32 @@
 
     // Handle auto-reply mode
     if (ACTION === "auto_reply") {
-      const replyMessage = findAutoReply(textToCheck);
+      // Skip if already processed for auto-reply to avoid duplicates
+      if (bubble.dataset.pfamAutoReplyProcessed) {
+        return;
+      }
+
+      const replyMessage = findAutoReply(textToCheck, bubble);
       if (replyMessage) {
+        console.log(`🛡️ Processing auto-reply for message: "${textToCheck.substring(0, 30)}..."`);
+
+        // Track the reply message to prevent loops
+        recentlySentMessages.add(replyMessage.trim());
+
+        // Clean up old messages after 30 seconds
+        setTimeout(() => {
+          recentlySentMessages.delete(replyMessage.trim());
+        }, 30000);
+
         // Mark as processed to avoid duplicate processing
         bubble.dataset.pfamProcessed = "1";
+        bubble.dataset.pfamAutoReplyProcessed = "1";
+
         // Add to auto-reply queue
         addToAutoReplyQueue(textToCheck, replyMessage);
+      } else {
+        // Mark as checked even if no reply triggered
+        bubble.dataset.pfamAutoReplyProcessed = "1";
       }
       return;
     }
@@ -1651,8 +1759,8 @@
   }
 
   chrome.storage?.onChanged.addListener((changes) => {
-    // In viewer mode and auto-reply mode, only listen for enable/disable changes, ignore everything else
-    if ((ACTION === "viewer_mode" || ACTION === "auto_reply") && !(K_ENABLED in changes) && !(K_AUTO_REPLIES in changes)) {
+    // In viewer mode and auto-reply mode, only listen for enable/disable changes, action changes, and auto-replies changes
+    if ((ACTION === "viewer_mode" || ACTION === "auto_reply") && !(K_ENABLED in changes) && !(K_AUTO_REPLIES in changes) && !(K_ACTION in changes)) {
       return;
     }
     
@@ -1687,6 +1795,7 @@
       actionChanged = (oldAction !== ACTION);
       
       if (actionChanged) {
+        console.log(`🔄 ACTION MODE CHANGED: ${oldAction} → ${ACTION}`);
         log(`action mode changed from ${oldAction} to ${ACTION} - clearing processed flags`);
         // Clear all processed flags so messages can be re-evaluated with new action
         const processedBubbles = document.querySelectorAll('div[data-message-id][data-pfam-processed]');
@@ -1737,15 +1846,52 @@
     }
   });
 
+  // Message listener for popup communication
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('Content script received message:', request);
+
+    switch (request.action) {
+      case 'getTabStatus':
+        sendResponse({
+          isActive: isActiveTab,
+          tabId: null,
+          action: ACTION,
+          enabled: ENABLED,
+          autoRepliesCount: AUTO_REPLIES.length
+        });
+        return true;
+
+      case 'forceActivate':
+        log('🚀 Force activation requested');
+        start();
+        sendResponse({ success: true });
+        return true;
+
+      case 'autoRepliesUpdated':
+        log('📝 Auto-replies updated, reloading...');
+        loadSettings();
+        return true;
+
+      case 'autoReplyToggled':
+        log(`🤖 Auto-reply toggled: ${request.enabled}`);
+        loadSettings();
+        return true;
+
+      default:
+        console.warn('Unknown message action:', request.action);
+        return false;
+    }
+  });
+
   function start() {
-    if (!ENABLED) { 
-      log("disabled (toggle in popup to enable)"); 
+    if (!ENABLED) {
+      log("disabled (toggle in popup to enable)");
       stopPeriodicScanning();
       stopChatHealthMonitoring();
       stopTabHeartbeat();
       stopSelfHealing();
       isActiveTab = false;
-      return; 
+      return;
     }
     log(`active (action=${ACTION}, delay=${DELAY_MS}ms, reason=${REASON})`);
     
@@ -1817,5 +1963,9 @@
   });
 
   // boot
+  // Add initialization logging
+  console.log("🛡️ StreamGuard content script initializing on:", window.location.href);
+  console.log("🔧 Current settings - ACTION:", ACTION, "ENABLED:", ENABLED, "AUTO_REPLIES:", AUTO_REPLIES.length);
+
   loadFromStorage(start);
 })();

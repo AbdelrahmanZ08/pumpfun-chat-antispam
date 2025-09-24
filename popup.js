@@ -91,6 +91,11 @@ function bind() {
       height: 600
     });
   });
+
+  // SOL address click handler
+  $("#sol-address").addEventListener("click", () => {
+    copyToClipboard('5mF2MvP6HTMqs85PvZ3S6kqvEtvEhh18EbCLqg6PQWEy');
+  });
 }
 
 function loadTabStatus() {
@@ -103,16 +108,19 @@ function loadTabStatus() {
     chrome.tabs?.sendMessage(tabs[0].id, {action: "getTabStatus"}, (response) => {
       // Clear any Chrome runtime errors
       if (chrome.runtime.lastError) {
+        console.log("Tab status check failed:", chrome.runtime.lastError.message);
         // Content script not loaded or not on pump.fun
         $("#tab-text").textContent = "Not on pump.fun or extension not loaded";
+        $("#tab-indicator").textContent = "⚪";
         return;
       }
-      
+
       if (response) {
         updateTabStatusUI(response.isActive, response.tabId);
       } else {
         // Fallback if content script not ready
         $("#tab-text").textContent = "Extension loading...";
+        $("#tab-indicator").textContent = "⚪";
       }
     });
   });

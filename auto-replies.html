@@ -1,0 +1,686 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>StreamGuard - Manage Auto Replies</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body {
+      padding: 12px;
+      margin: 0;
+      background: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .replies-card {
+      width: 580px;
+      max-width: 95vw;
+      padding: 24px;
+      background: linear-gradient(135deg, var(--panel) 0%, var(--panel-solid) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .replies-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 50%, var(--accent) 100%);
+      border-radius: 16px 16px 0 0;
+    }
+
+    .replies-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .replies-header .title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--txt) 0%, var(--accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      filter: brightness(1.1);
+    }
+
+    .help-section {
+      background: rgba(133, 207, 203, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .help-title {
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .help-text {
+      font-size: 13px;
+      color: var(--txt-muted);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .example-box {
+      background: rgba(44, 40, 40, 0.6);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      position: relative;
+    }
+
+    .example-label {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg);
+      color: var(--accent-light);
+      padding: 0 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .example-trigger {
+      color: var(--warning);
+      font-weight: 600;
+    }
+
+    .example-reply {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    .add-preset-btn {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .add-preset-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+      transition: left 0.5s ease;
+    }
+
+    .add-preset-btn:hover::before {
+      left: 100%;
+    }
+
+    .add-preset-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      filter: brightness(1.1);
+    }
+
+    .preset-item {
+      background: rgba(44, 40, 40, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      position: relative;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+      overflow: hidden;
+    }
+
+    .preset-header {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(59, 44, 133, 0.1);
+    }
+
+    .preset-header:hover {
+      background: rgba(59, 44, 133, 0.15);
+    }
+
+    .preset-preview {
+      flex: 1;
+      font-size: 12px;
+      color: var(--txt-muted);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .preset-trigger-preview {
+      color: var(--warning);
+      font-weight: 600;
+    }
+
+    .preset-reply-preview {
+      color: var(--success);
+    }
+
+    .preset-arrow {
+      transition: transform 0.3s ease;
+      color: var(--accent-light);
+    }
+
+    .preset-item.collapsed .preset-arrow {
+      transform: rotate(-90deg);
+    }
+
+    .preset-content {
+      padding: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .preset-item.collapsed .preset-content {
+      display: none;
+    }
+
+    .preset-item:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .preset-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .preset-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .preset-input {
+      flex: 1;
+      background: rgba(59, 44, 133, 0.1);
+      color: var(--txt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+
+    .preset-input:hover {
+      border-color: var(--border-hover);
+      background: rgba(59, 44, 133, 0.15);
+    }
+
+    .preset-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(33, 152, 151, 0.2);
+      background: rgba(59, 44, 133, 0.2);
+    }
+
+    .preset-input::placeholder {
+      color: var(--txt-muted);
+      opacity: 0.7;
+    }
+
+    .preset-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+
+    .remove-btn, .save-preset-btn {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .save-preset-btn {
+      background: rgba(33, 152, 151, 0.1);
+      color: var(--accent);
+      border-color: rgba(33, 152, 151, 0.3);
+    }
+
+    .remove-btn:hover {
+      background: #ef4444;
+      color: white;
+      border-color: #ef4444;
+      transform: scale(1.05);
+    }
+
+    .save-preset-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+      transform: scale(1.05);
+    }
+
+    .preset-label {
+      font-size: 11px;
+      color: var(--accent-light);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--txt-muted);
+      padding: 40px 20px;
+      font-size: 14px;
+      background: rgba(133, 207, 203, 0.05);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      margin: 20px 0;
+    }
+
+    .tips-section {
+      background: rgba(59, 44, 133, 0.1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .tip-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--txt-muted);
+    }
+
+    .tip-icon {
+      color: var(--accent-light);
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .save-btn {
+      flex: 2;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .save-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+      transition: left 0.5s ease;
+    }
+
+    .save-btn:hover::before {
+      left: 100%;
+    }
+
+    .save-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      filter: brightness(1.1);
+    }
+
+    .reset-btn {
+      flex: 1;
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .reset-btn:hover {
+      background: #ef4444;
+      color: white;
+      border-color: #ef4444;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .status-msg {
+      font-size: 13px;
+      text-align: center;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+      font-weight: 500;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .status-success {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-error {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    @media (max-width: 700px) {
+      .replies-card {
+        width: 95vw;
+        padding: 20px;
+      }
+
+      .tips-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .preset-row {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .remove-btn {
+        align-self: flex-end;
+        margin-top: 8px;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      .save-btn, .reset-btn {
+        flex: 1;
+      }
+    }
+
+    /* Custom Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, var(--panel) 0%, var(--panel-solid) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: var(--shadow-lg);
+      animation: modalIn 0.3s ease;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--txt);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .modal-message {
+      font-size: 13px;
+      color: var(--txt-muted);
+      text-align: center;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .modal-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .modal-btn-confirm {
+      background: #ef4444;
+      color: white;
+    }
+
+    .modal-btn-cancel {
+      background: rgba(133, 207, 203, 0.1);
+      color: var(--accent-light);
+      border: 1px solid var(--border);
+    }
+
+    .modal-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="replies-card">
+    <div class="replies-header">
+      <div class="title">Manage Auto Replies</div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--txt-muted);">
+          <span>Auto Reply</span>
+          <label class="switch">
+            <input type="checkbox" id="auto-reply-enabled">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button id="back-btn" class="back-btn">← Back</button>
+      </div>
+    </div>
+
+    <div class="help-section">
+      <div class="help-title">Instructions</div>
+      <div class="help-text">
+        Create trigger-reply pairs. When someone sends a message containing the trigger, the extension will automatically reply.
+      </div>
+
+      <div class="example-box">
+        <div class="example-label">Example</div>
+        <div class="example-trigger">Trigger: "Twitter"</div>
+        <div class="example-reply">Reply: "@boudy_08"</div>
+        <div style="color: var(--txt-muted); margin-top: 4px; font-size: 10px;">
+          → When anyone types "Twitter", bot replies "@boudy_08"
+        </div>
+      </div>
+    </div>
+
+    <button id="add-preset-btn" class="add-preset-btn">Add New Auto Reply</button>
+
+    <div id="presets-container">
+      <!-- Preset items will be dynamically added here -->
+    </div>
+
+    <div id="empty-state" class="empty-state" style="display: none;">
+      <div style="font-size: 18px; margin-bottom: 12px; color: var(--accent-light); font-weight: 600;">AUTO REPLIES</div>
+      <div>No auto replies configured yet.</div>
+      <div style="margin-top: 8px; opacity: 0.7;">Click "Add New Auto Reply" to get started!</div>
+    </div>
+
+    <div class="tips-section">
+      <div class="help-title">Pro Tips</div>
+      <div class="tips-grid">
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Triggers are case-insensitive</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Supports wildcards: "how*buy"</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Use "exact:" for exact matching</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Enable "Auto Reply" mode to activate</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Replies sent exactly as typed</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>⚠️ Requires pump.fun authentication</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-row">
+      <button id="reset-btn" class="reset-btn">Clear All</button>
+      <button id="save-btn" class="save-btn">Save Auto Replies</button>
+    </div>
+
+    <div id="status-msg" class="status-msg"></div>
+  </div>
+
+  <!-- Custom Confirmation Modal -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-content">
+      <div id="modal-title" class="modal-title">Confirm Action</div>
+      <div id="modal-message" class="modal-message">Are you sure?</div>
+      <div class="modal-buttons">
+        <button id="modal-cancel" class="modal-btn modal-btn-cancel">Cancel</button>
+        <button id="modal-confirm" class="modal-btn modal-btn-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="auto-replies.js"></script>
+</body>
+</html>

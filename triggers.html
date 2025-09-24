@@ -2,103 +2,306 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>lolnuked StreamGuard - Manage Triggers</title>
+  <title>StreamGuard - Manage Triggers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css" />
   <style>
-    .triggers-card {
-      width: 400px;
-      padding: 16px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+    body {
+      padding: 12px;
+      margin: 0;
+      background: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
     }
-    
+
+    .triggers-card {
+      width: 500px;
+      max-width: 90vw;
+      padding: 24px;
+      background: linear-gradient(135deg, var(--panel) 0%, var(--panel-solid) 100%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .triggers-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 50%, var(--accent) 100%);
+      border-radius: 16px 16px 0 0;
+    }
+
     .triggers-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 12px;
+      margin-bottom: 20px;
     }
-    
-    .back-btn {
-      background: var(--border);
-      color: var(--txt);
-      border: none;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 11px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .back-btn:hover { background: var(--accent); }
-    
-    .triggers-textarea {
-      width: 100%;
-      height: 200px;
-      background: #0f1a2e;
-      color: var(--txt);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 12px;
-      line-height: 1.4;
-      resize: vertical;
-      box-sizing: border-box;
-    }
-    
-    .triggers-textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    
-    .help-text {
-      font-size: 11px;
-      color: var(--muted);
-      margin: 8px 0;
-    }
-    
-    .button-row {
+
+    .triggers-header .title {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--txt) 0%, var(--accent-light) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
       display: flex;
+      align-items: center;
       gap: 8px;
-      margin-top: 12px;
     }
-    
-    .save-btn {
-      flex: 1;
+
+    .back-btn {
       background: var(--accent);
       color: white;
       border: none;
       border-radius: 8px;
-      padding: 8px 12px;
+      padding: 8px 16px;
       font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-sm);
     }
-    .save-btn:hover { background: #0ea5e9; }
-    
-    .reset-btn {
-      background: var(--border);
+
+    .back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      filter: brightness(1.1);
+    }
+
+    .help-section {
+      background: rgba(133, 207, 203, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .help-title {
+      font-weight: 600;
+      color: var(--accent-light);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .help-text {
+      font-size: 13px;
+      color: var(--txt-muted);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .triggers-textarea {
+      width: 100%;
+      height: 240px;
+      background: rgba(44, 40, 40, 0.8);
       color: var(--txt);
-      border: none;
-      border-radius: 8px;
-      padding: 8px 12px;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      resize: vertical;
+      box-sizing: border-box;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+
+    .triggers-textarea:hover {
+      border-color: var(--border-hover);
+      background: rgba(44, 40, 40, 0.9);
+    }
+
+    .triggers-textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(33, 152, 151, 0.2);
+      background: rgba(44, 40, 40, 1);
+    }
+
+    .triggers-textarea::placeholder {
+      color: var(--txt-muted);
+      opacity: 0.7;
+    }
+
+    .tips-section {
+      background: rgba(59, 44, 133, 0.1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 20px 0;
+    }
+
+    .tips-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .tip-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
       font-size: 12px;
+      color: var(--txt-muted);
+    }
+
+    .tip-icon {
+      color: var(--accent-light);
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .save-btn {
+      flex: 2;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
     }
-    .reset-btn:hover { background: #dc2626; color: white; }
-    
+
+    .save-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+      transition: left 0.5s ease;
+    }
+
+    .save-btn:hover::before {
+      left: 100%;
+    }
+
+    .save-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      filter: brightness(1.1);
+    }
+
+    .reset-btn {
+      flex: 1;
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .reset-btn:hover {
+      background: #ef4444;
+      color: white;
+      border-color: #ef4444;
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
     .status-msg {
-      font-size: 11px;
+      font-size: 13px;
       text-align: center;
-      margin-top: 8px;
-      padding: 4px;
-      border-radius: 4px;
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
       display: none;
+      font-weight: 500;
+      animation: fadeIn 0.3s ease;
     }
-    .status-success { background: #065f46; color: #10b981; }
-    .status-error { background: #7f1d1d; color: #f87171; }
+
+    .status-success {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-error {
+      background: rgba(239, 68, 68, 0.1);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .example-box {
+      background: rgba(44, 40, 40, 0.6);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 12px 0;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      position: relative;
+    }
+
+    .example-label {
+      position: absolute;
+      top: -8px;
+      left: 12px;
+      background: var(--bg);
+      color: var(--accent-light);
+      padding: 0 6px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 600px) {
+      .triggers-card {
+        width: 95vw;
+        padding: 20px;
+      }
+
+      .tips-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .button-row {
+        flex-direction: column;
+      }
+
+      .save-btn, .reset-btn {
+        flex: 1;
+      }
+    }
   </style>
 </head>
 <body>
@@ -107,11 +310,14 @@
       <div class="title">Manage Trigger Words</div>
       <button id="back-btn" class="back-btn">← Back</button>
     </div>
-    
-    <div class="help-text">
-      Add trigger words/phrases (one per line). Messages containing these will be processed:
+
+    <div class="help-section">
+      <div class="help-title">Instructions</div>
+      <div class="help-text">
+        Add trigger words/phrases (one per line). Messages containing these will be processed by the extension.
+      </div>
     </div>
-    
+
     <textarea id="triggers-textarea" class="triggers-textarea" placeholder="stoprugs
 solspoint
 scam alert
@@ -121,24 +327,51 @@ rugpull
 exact:full bundled dont buy
 exact:least obvious rug lol
 
-Add your own triggers here..."></textarea>
-    
-    <div class="help-text">
-      <strong>Tips:</strong><br>
-      • Use lowercase for better matching<br>
-      • Include @ for username patterns (e.g., @fudders)<br>
-      • Use @*rug* for the regex pattern<br>
-      • <strong>Use "exact:" for exact phrase matching</strong> (e.g., exact:full bundled dont buy)<br>
-      • Without "exact:" = partial matching (e.g., "bundle" catches "bundled")<br>
-      • Test with "Highlight" mode first<br>
-      • Changes apply immediately after saving
+# Add your own triggers here...
+# Lines starting with # are comments"></textarea>
+
+    <div class="tips-section">
+      <div class="help-title">Pro Tips</div>
+      <div class="tips-grid">
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Use lowercase for better matching</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Include @ for username patterns</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Use @*rug* for regex patterns</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Test with "Highlight" mode first</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Use "exact:" for exact matching</span>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">•</span>
+          <span>Changes apply immediately</span>
+        </div>
+      </div>
+
+      <div class="example-box">
+        <div class="example-label">Examples</div>
+        <div style="color: var(--accent-light);">stoprugs</div>
+        <div style="color: var(--light-teal);">@*rug*</div>
+        <div style="color: var(--txt-muted);">exact:full bundled dont buy</div>
+      </div>
     </div>
-    
+
     <div class="button-row">
-      <button id="reset-btn" class="reset-btn">Reset to Defaults</button>
+      <button id="reset-btn" class="reset-btn">Reset</button>
       <button id="save-btn" class="save-btn">Save Triggers</button>
     </div>
-    
+
     <div id="status-msg" class="status-msg"></div>
   </div>
 

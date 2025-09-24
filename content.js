@@ -14,10 +14,11 @@
 (() => {
   // -------- storage keys & defaults --------
   const K_ENABLED = "pfam_enabled";
-  const K_ACTION = "pfam_action";          // "highlight" | "delete_ui" | "ban_ui"
+  const K_ACTION = "pfam_action";          // "highlight" | "delete_ui" | "ban_ui" | "auto_reply"
   const K_DELAY  = "pfam_delay_ms";        // number (ms)
   const K_REASON = "pfam_ban_reason";      // "Spam" | "Toxic"
   const K_CUSTOM_TRIGGERS = "pfam_custom_triggers"; // Custom trigger words
+  const K_AUTO_REPLIES = "pfam_auto_replies"; // Auto reply presets
 
   const DEFAULTS = {
     [K_ENABLED]: true,
@@ -31,6 +32,12 @@
   let DELAY_MS = DEFAULTS[K_DELAY];
   let REASON   = DEFAULTS[K_REASON];
   let CUSTOM_TRIGGERS = []; // Array of custom trigger words
+  let AUTO_REPLIES = []; // Array of auto reply presets {trigger, reply}
+
+  // Auto-reply system
+  let chatClient = null;
+  let autoReplyQueue = [];
+  let isProcessingAutoReply = false;
 
   // Global processing lock to prevent concurrent UI operations
   let isProcessing = false;
@@ -585,9 +592,9 @@
   function isMatch(text) {
     const t = normalizeKeepAt(text);
     if (!t) return false;
-    
-    // Skip logging in viewer mode to minimize any activity
-    if (ACTION !== "viewer_mode") {
+
+    // Skip logging in viewer mode and auto reply mode to minimize activity
+    if (ACTION !== "viewer_mode" && ACTION !== "auto_reply") {
       log(`🔍 checking message: "${text.substring(0, 50)}" (normalized: "${t.substring(0, 50)}")`);
       log(`🔍 against ${CUSTOM_TRIGGERS.length} triggers:`, CUSTOM_TRIGGERS);
     }
@@ -662,6 +669,66 @@
     return false;
   }
 
+  // Auto-reply matcher: checks if message should trigger an auto reply
+  function findAutoReply(text) {
+    if (ACTION !== "auto_reply" || AUTO_REPLIES.length === 0) return null;
+
+    const t = normalizeKeepAt(text);
+    if (!t) return null;
+
+    log(`🤖 checking for auto-reply triggers in: "${text.substring(0, 50)}"`);
+
+    // Check auto reply triggers
+    for (const preset of AUTO_REPLIES) {
+      if (!preset.trigger || !preset.reply) continue;
+
+      const trigger = preset.trigger.trim();
+      if (!trigger) continue;
+
+      // Handle exact phrase matching with "exact:" prefix
+      if (trigger.startsWith("exact:")) {
+        const exactPhrase = trigger.substring(6).trim();
+        const extractLettersOnly = (str) => {
+          return normalizeKeepAt(str).replace(/[^a-z0-9]/g, '');
+        };
+
+        const messageLettersOnly = extractLettersOnly(t);
+        const triggerLettersOnly = extractLettersOnly(exactPhrase);
+
+        if (messageLettersOnly === triggerLettersOnly) {
+          log(`✅ auto-reply exact match: "${trigger}" → "${preset.reply}"`);
+          return preset.reply;
+        }
+        continue;
+      }
+
+      const normalizedTrigger = normalizeKeepAt(trigger);
+
+      // Handle wildcard patterns (e.g., "how*buy")
+      if (trigger.includes("*")) {
+        const wildcardPattern = normalizedTrigger
+          .split('*')
+          .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('.*');
+
+        const regex = new RegExp(wildcardPattern, 'i');
+
+        if (regex.test(t)) {
+          log(`✅ auto-reply wildcard match: "${trigger}" → "${preset.reply}"`);
+          return preset.reply;
+        }
+      } else {
+        // Regular partial string matching
+        if (t.includes(normalizedTrigger)) {
+          log(`✅ auto-reply match: "${trigger}" → "${preset.reply}"`);
+          return preset.reply;
+        }
+      }
+    }
+
+    return null;
+  }
+
   function closestBubble(node) {
     if (!node || node.nodeType !== 1) return null;
     return node.closest('div[data-message-id]');
@@ -684,9 +751,171 @@
 
     // Hide the bubble completely (viewer mode) - PURE CSS, NO NETWORK ACTIVITY
     bubble.style.display = "none";
-    
+
     // No logging in production to minimize any potential activity
     // log(`hidden spam bubble from view`);
+  }
+
+  // Auto-reply processing functions
+  function addToAutoReplyQueue(messageText, reply) {
+    autoReplyQueue.push({
+      originalMessage: messageText.substring(0, 100),
+      reply: reply,
+      timestamp: Date.now()
+    });
+
+    log(`🤖 added auto-reply to queue: "${reply}" (queue size: ${autoReplyQueue.length})`);
+    processAutoReplyQueue();
+  }
+
+  async function processAutoReplyQueue() {
+    if (isProcessingAutoReply || autoReplyQueue.length === 0) return;
+
+    isProcessingAutoReply = true;
+
+    try {
+      const replyItem = autoReplyQueue.shift();
+      const success = await sendAutoReply(replyItem.reply);
+
+      if (success) {
+        log(`✅ auto-reply sent: "${replyItem.reply}"`);
+      } else {
+        log(`❌ auto-reply failed: "${replyItem.reply}"`);
+        // Re-queue with delay if failed (but don't retry indefinitely)
+        if (replyItem.retries < 2) {
+          setTimeout(() => {
+            replyItem.retries = (replyItem.retries || 0) + 1;
+            autoReplyQueue.unshift(replyItem);
+            isProcessingAutoReply = false;
+            processAutoReplyQueue();
+          }, 5000);
+          return;
+        }
+      }
+
+      // Small delay between auto-replies to avoid spam detection
+      await sleep(2000);
+
+    } catch (error) {
+      log(`❌ auto-reply processing error:`, error);
+    } finally {
+      isProcessingAutoReply = false;
+
+      // Process next item in queue if any
+      if (autoReplyQueue.length > 0) {
+        setTimeout(processAutoReplyQueue, 1000);
+      }
+    }
+  }
+
+  async function sendAutoReply(message) {
+    try {
+      // Method 1: Try WebSocket direct injection
+      if (window.pfamSendMessage && typeof window.pfamSendMessage === 'function') {
+        const roomId = extractRoomId() || window.location.pathname.split('/').pop();
+        return window.pfamSendMessage(message, roomId);
+      }
+
+      // Method 2: Try HTTP API
+      const success = await sendMessageViaAPI(message);
+      if (success) return true;
+
+      // Method 3: Initialize chat client if needed
+      if (!chatClient) {
+        await initializeChatClient();
+      }
+
+      if (chatClient && chatClient.isActive()) {
+        return chatClient.sendMessage(message);
+      }
+
+      return false;
+    } catch (error) {
+      log(`❌ sendAutoReply error:`, error);
+      return false;
+    }
+  }
+
+  async function sendMessageViaAPI(message) {
+    try {
+      const roomId = extractRoomId() || window.location.pathname.split('/').pop();
+      const token = extractJWTToken();
+
+      if (!roomId || !token) return false;
+
+      const response = await fetch(`https://pump.fun/api/chat/${roomId}/message`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'auth-token': token,
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          message: message,
+          timestamp: new Date().toISOString()
+        }),
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        log(`⚡ auto-reply sent via API: "${message}"`);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      log(`❌ sendMessageViaAPI error:`, error);
+      return false;
+    }
+  }
+
+  async function initializeChatClient() {
+    try {
+      if (typeof PumpChatClient === 'undefined') {
+        log(`❌ PumpChatClient not available`);
+        return false;
+      }
+
+      const roomId = extractRoomId() || window.location.pathname.split('/').pop();
+      if (!roomId) {
+        log(`❌ unable to get room ID for chat client`);
+        return false;
+      }
+
+      chatClient = new PumpChatClient({
+        roomId: roomId,
+        username: 'StreamGuard',
+        messageHistoryLimit: 50
+      });
+
+      chatClient.on('connected', () => {
+        log(`🤖 chat client connected to room: ${roomId}`);
+      });
+
+      chatClient.on('error', (error) => {
+        log(`❌ chat client error:`, error);
+      });
+
+      chatClient.connect();
+
+      // Wait for connection
+      await new Promise((resolve) => {
+        const checkConnection = () => {
+          if (chatClient.isActive()) {
+            resolve();
+          } else {
+            setTimeout(checkConnection, 500);
+          }
+        };
+        checkConnection();
+      });
+
+      return true;
+    } catch (error) {
+      log(`❌ initializeChatClient error:`, error);
+      return false;
+    }
   }
 
   function getKebabButton(bubble) {
@@ -1276,33 +1505,46 @@
 
   async function handleBubble(bubble) {
     if (!bubble || bubble.dataset.pfamProcessed || !ENABLED) return;
-    
-    // Only process if this is the active tab
-    if (!isActiveTab) {
+
+    // Only process if this is the active tab (except for auto-reply mode)
+    if (!isActiveTab && ACTION !== "auto_reply") {
       return; // Dormant tab - do nothing
     }
-    
+
     // Try to extract just the message text, not the username
     let messageText = "";
     const fullText = bubble.innerText || "";
-    
+
     // Look for p.break-words element which typically contains the message
     const messageElement = bubble.querySelector('p.break-words, p[class*="break"]');
     if (messageElement) {
       messageText = messageElement.textContent || messageElement.innerText || "";
       messageText = messageText.replace(/\s+/g, ' ').trim();
-      if (ACTION !== "viewer_mode") {
+      if (ACTION !== "viewer_mode" && ACTION !== "auto_reply") {
         log(`🔍 extracted message: "${messageText}" (from element)`);
       }
     } else {
-      if (ACTION !== "viewer_mode") {
+      if (ACTION !== "viewer_mode" && ACTION !== "auto_reply") {
         log(`🔍 no message element found, using full text`);
       }
     }
-    
+
     // Fallback to full text if we can't extract the message
     const textToCheck = messageText || fullText;
-    
+
+    // Handle auto-reply mode
+    if (ACTION === "auto_reply") {
+      const replyMessage = findAutoReply(textToCheck);
+      if (replyMessage) {
+        // Mark as processed to avoid duplicate processing
+        bubble.dataset.pfamProcessed = "1";
+        // Add to auto-reply queue
+        addToAutoReplyQueue(textToCheck, replyMessage);
+      }
+      return;
+    }
+
+    // Handle spam detection modes
     if (!isMatch(textToCheck)) return;
 
     if (ACTION !== "viewer_mode") {
@@ -1315,13 +1557,19 @@
 
   function scanRoot(root) {
     if (!root || !ENABLED) return;
-    
+
     // In viewer mode, don't process existing messages - only new ones from mutation observer
     if (ACTION === "viewer_mode") {
       log("viewer mode: skipping existing messages, will only hide new incoming messages");
       return;
     }
-    
+
+    // In auto-reply mode, also skip existing messages - only respond to new ones
+    if (ACTION === "auto_reply") {
+      log("auto-reply mode: skipping existing messages, will only auto-reply to new messages");
+      return;
+    }
+
     const all = root.querySelectorAll('div[data-message-id]');
     all.forEach(el => handleBubble(el));
   }
@@ -1350,30 +1598,33 @@
   }
 
   function loadFromStorage(cb) {
-    const keysToLoad = {...DEFAULTS, [K_CUSTOM_TRIGGERS]: ""};
-    
+    const keysToLoad = {...DEFAULTS, [K_CUSTOM_TRIGGERS]: "", [K_AUTO_REPLIES]: "[]"};
+
     chrome.storage?.sync.get(keysToLoad, (res) => {
       ENABLED  = !!res[K_ENABLED];
       ACTION   = res[K_ACTION] || DEFAULTS[K_ACTION];
       DELAY_MS = +res[K_DELAY] || DEFAULTS[K_DELAY];
       REASON   = res[K_REASON] || DEFAULTS[K_REASON];
-      
+
       // Load custom triggers
       loadCustomTriggers(res[K_CUSTOM_TRIGGERS]);
-      
+
+      // Load auto replies
+      loadAutoReplies(res[K_AUTO_REPLIES]);
+
       cb && cb();
     });
   }
 
   function loadCustomTriggers(triggersText) {
     log(`loadCustomTriggers called with: "${triggersText}"`);
-    
+
     if (triggersText && triggersText.trim()) {
       CUSTOM_TRIGGERS = triggersText
         .split('\n')
         .map(line => line.trim())
         .filter(line => line && !line.startsWith('#')); // Remove empty lines and comments
-      
+
       log(`loaded ${CUSTOM_TRIGGERS.length} custom triggers:`, CUSTOM_TRIGGERS);
     } else {
       // Use default triggers if nothing provided
@@ -1387,9 +1638,21 @@
     }
   }
 
+  function loadAutoReplies(autoRepliesJson) {
+    log(`loadAutoReplies called with: "${autoRepliesJson}"`);
+
+    try {
+      AUTO_REPLIES = JSON.parse(autoRepliesJson || "[]");
+      log(`loaded ${AUTO_REPLIES.length} auto-reply presets:`, AUTO_REPLIES);
+    } catch (error) {
+      log(`error parsing auto replies JSON:`, error);
+      AUTO_REPLIES = [];
+    }
+  }
+
   chrome.storage?.onChanged.addListener((changes) => {
-    // In viewer mode, only listen for enable/disable changes, ignore everything else
-    if (ACTION === "viewer_mode" && !(K_ENABLED in changes)) {
+    // In viewer mode and auto-reply mode, only listen for enable/disable changes, ignore everything else
+    if ((ACTION === "viewer_mode" || ACTION === "auto_reply") && !(K_ENABLED in changes) && !(K_AUTO_REPLIES in changes)) {
       return;
     }
     
@@ -1460,6 +1723,11 @@
         bubble.style.boxShadow = "";
       });
     }
+
+    if (K_AUTO_REPLIES in changes) {
+      loadAutoReplies(changes[K_AUTO_REPLIES].newValue);
+      log("auto replies updated");
+    }
     
     log(`settings updated: enabled=${ENABLED}, action=${ACTION}, delay=${DELAY_MS}, reason=${REASON}`);
     
@@ -1485,6 +1753,15 @@
     if (ACTION === "viewer_mode") {
       log("🎮 VIEWER MODE: Starting minimal passive systems only");
       isActiveTab = true; // Always active in viewer mode (no coordination needed)
+      scanRoot(document); // Skip existing messages
+      installObserver(document); // Only listen for new messages
+      return;
+    }
+
+    // For auto-reply mode, start minimal systems with message monitoring
+    if (ACTION === "auto_reply") {
+      log("🤖 AUTO-REPLY MODE: Starting auto-reply systems");
+      isActiveTab = true; // Always active in auto-reply mode
       scanRoot(document); // Skip existing messages
       installObserver(document); // Only listen for new messages
       return;
@@ -1522,6 +1799,14 @@
         log("triggers reloaded from storage");
         // Force rescan after triggers update to catch existing messages
         setTimeout(() => forceRescanAllMessages(), 1000);
+        sendResponse({ success: true });
+      });
+      return true; // Will respond asynchronously
+    } else if (request.action === "autoRepliesUpdated") {
+      // Reload auto replies from storage
+      chrome.storage?.sync?.get([K_AUTO_REPLIES], (res) => {
+        loadAutoReplies(res[K_AUTO_REPLIES]);
+        log("auto replies reloaded from storage");
         sendResponse({ success: true });
       });
       return true; // Will respond asynchronously

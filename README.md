@@ -1,10 +1,11 @@
-# 🛡️ lolnuked StreamGuard v0.0.027 - Ultimate Pump.fun Spam Protection
+# 🛡️ StreamGuard v0.0.030 - Ultimate Pump.fun Spam Protection
 
-![Version](https://img.shields.io/badge/version-0.0.027-blue)
+![Version](https://img.shields.io/badge/version-0.0.030-blue)
 ![Status](https://img.shields.io/badge/status-active-green)
 ![License](https://img.shields.io/badge/license-MIT%20with%20Attribution-orange)
 
-**Created by Daniel "CEO of the XRPL" Keller | [@daniel_wwf](https://x.com/daniel_wwf)**
+**Maintained & Enhanced by Boudy | [@boudy_08](https://x.com/boudy_08)**
+*Original concept by Daniel "CEO of the XRPL" Keller | [@daniel_wwf](https://x.com/daniel_wwf)*
 
 **For streamers, traders, and degens. Keep your chat clean while you focus on the charts! 🚀**
 
@@ -12,7 +13,7 @@
 
 ## What This Bad Boy Does 💪
 
-This Chrome extension is your personal bouncer for PumpFun chat. It automatically detects and nukes those annoying `@fightrugs`, `@stoprugs`, and other rug-related spam messages that flood the chat when you're trying to ape into the next 100x.
+This Chrome extension is your personal bouncer for PumpFun chat. It automatically detects and removes those annoying `@fightrugs`, `@stoprugs`, and other rug-related spam messages that flood the chat when you're trying to ape into the next 100x.
 
 **TL;DR:** It finds spam → highlights it → deletes it → bans the spammers. All automatically. You focus on the charts, we handle the spam.
 
@@ -293,16 +294,16 @@ PF Auto-Mod processing lock released
 - **Sometimes need refresh after changing modes** (working on it)
 - **Ban mode needs proper mod permissions** (can't fix stupid)
 
-## Support the Degen Dev 💰
+## Support the Development 💰
 
 If this extension saved your sanity and helped you avoid rug spam while you're trying to make it big, consider supporting:
 
-**Buy some $NUKED:**
+**Send SOL to support development:**
 ```
-CA: CVS4NMq2AVSJEzi9ui8TCm3QrCTfDtRmKZh6cSdnpump
+5mF2MvP6HTMqs85PvZ3S6kqvEtvEhh18EbCLqg6PQWEy
 ```
 
-**Or send SOL directly:**
+*Original developer support:*
 ```
 HUNAHhNnDviL4bwFHryzgXvspH5NVRGYrnqLHjbgwWnu
 ```
@@ -319,7 +320,7 @@ Found a bug? Got an idea? Want to make it even more based?
 
 ## Changelog 📝
 
-### v0.0.027 (Latest) - December 2024
+### v0.0.030 (Latest) - December 2024
 #### ⚡ MASSIVE PERFORMANCE OPTIMIZATIONS
 - **Direct API Integration** - Bans now ~50ms (was 3000ms!)
 - **Optimized Token Extraction** - Direct auth_token lookup, no searching
@@ -336,7 +337,7 @@ Found a bug? Got an idea? Want to make it even more based?
 - **Fixed Delay Visibility** - Only hidden in Viewer Mode as intended
 - **Removed User Tracking** - Pure trigger-based detection only
 - **Default 0.2s Delay** - Optimal balance of speed and safety
-- **Version Tracking** - Proper v0.0.027 versioning throughout
+- **Version Tracking** - Proper v0.0.030 versioning throughout
 
 #### 🚀 Performance Results
 | Operation | Before | After | Improvement |

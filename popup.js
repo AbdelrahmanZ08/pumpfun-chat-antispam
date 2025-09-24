@@ -81,6 +81,16 @@ function bind() {
       height: 500
     });
   });
+
+  // Manage auto replies button
+  $("#manage-replies").addEventListener("click", () => {
+    chrome.windows?.create({
+      url: "auto-replies.html",
+      type: "popup",
+      width: 520,
+      height: 600
+    });
+  });
 }
 
 function loadTabStatus() {
@@ -127,17 +137,82 @@ function updateTabStatusUI(isActive, tabId) {
 function updateDelayVisibility(actionMode) {
   const delayRow = $("#delay-row");
   const delayMessage = $("#delay-message");
-  
-  if (actionMode === "viewer_mode") {
-    // Show message for viewer mode (no delay options)
+
+  if (actionMode === "viewer_mode" || actionMode === "auto_reply") {
+    // Show message for viewer mode and auto-reply mode (no delay options)
     delayRow.style.display = "none";
     delayMessage.style.display = "flex";
+
+    // Update message text based on mode
+    const infoText = delayMessage.querySelector(".info-text");
+    if (actionMode === "auto_reply") {
+      infoText.textContent = "Auto replies have built-in delays";
+    } else {
+      infoText.textContent = "No delay options (instant hiding)";
+    }
   } else {
     // Show delay selector for other modes
     delayRow.style.display = "flex";
     delayMessage.style.display = "none";
   }
 }
+
+// Copy to clipboard function
+function copyToClipboard(text) {
+  // Try modern clipboard API first
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      showCopyNotification('Address copied!');
+    }).catch(err => {
+      console.error('Clipboard API failed:', err);
+      fallbackCopyText(text);
+    });
+  } else {
+    // Fallback for older browsers or non-secure contexts
+    fallbackCopyText(text);
+  }
+}
+
+// Fallback copy method using selection
+function fallbackCopyText(text) {
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    const successful = document.execCommand('copy');
+    textArea.remove();
+
+    if (successful) {
+      showCopyNotification('Address copied!');
+    } else {
+      showCopyNotification('Copy failed - please select manually', 'error');
+    }
+  } catch (err) {
+    console.error('Fallback copy failed:', err);
+    showCopyNotification('Copy failed - please select manually', 'error');
+  }
+}
+
+// Show copy notification
+function showCopyNotification(message, type = 'success') {
+  const notification = document.createElement('div');
+  notification.className = 'copy-notification';
+  notification.textContent = type === 'success' ? '📋 ' + message : '❌ ' + message;
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+
+// Make function global
+window.copyToClipboard = copyToClipboard;
 
 document.addEventListener("DOMContentLoaded", () => {
   load(); bind();
